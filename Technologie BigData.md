@@ -1,15 +1,17 @@
 # Technologie BigData
 
-## Hadoop
+## Cours 1
 
-### Virtual Machine
+### Hadoop
+
+#### Virtual Machine
+
 Mon ip : 192.168.56.101
 
-
 Launch hdfs : 
-start-dfs.sh
+``start-dfs.sh``
 jps
-start-yarn.sh
+``start-yarn.sh``
 
 Hadoop interface : 192.168.56.101:50070
 Yarn interface : 192.168.56.101:8088
@@ -27,6 +29,7 @@ Activate Hive :
 hive
 Hive commands :
 ```SQL
+USE DATASOURCE;
 SHOW DATABASES;
 SHOW DATABASE test;
 SHOW TABLES;
@@ -91,17 +94,21 @@ INSERT OVERWRITE TABLE svi_data_orc SELECT * FROM svi_data;
 
 ```
 
-## SPARK
+### SPARK
+
+- BAS: RDD, DATAFrame
+- Haut: SQL(HiveQL)
+
 ```terminal
 spark-sql --master yarn-client
 spark-sql --master local[*]
 ```
 interface spark : 192.168.56.101:4040
 
-## Data set
+### Data set
 Unpackage tar.gz => tar -zxvf *.tar.gz
 
-## Object data (Json)
+### Object data (Json)
 - create a folder `json` on hdfs
 ```terminal
 hdfs dfs -mkdir /user/hadoop/json
@@ -112,7 +119,7 @@ cd public/json
 hdfs dfs -put *.json /user/hadoop/json/
 ```
 
-## Launch Spark version Python: `Pyspark`
+### Launch Spark version Python: `Pyspark`
 Open a terminal and write this
 ```terminal
 $ pyspark
@@ -149,23 +156,113 @@ COLLECT_SET(name) as hotels
 FROM googleplace
 GROUP BY ROUND(location.lat,0), ROUND(location.lng,0);
 ```
-
-██─▄███▄███▄─██▄──▄██──▄███▄──██──██
-██─█████████──▀████▀──██▀─▀██─██──██
-██──▀█████▀─────██────██▄─▄██─██──██
-██────▀█▀───────██─────▀███▀──▀████▀ 
-
- / '.        .--.
- |   \     .'-,  |
- \    \___/    \_/
-  '._.'   '._.'
-    /  . .  \
-    |=  Y  =|
-    \   ^   /
-     `'---'`
-     
-
 ---
+
+## Cours 2
+
+### Stop scripts
+
+```bash
+ps -u hadoop
+kill -9 your_notebook_PID
+stop-dfs.sh && stop-yarn.sh OR stop-all.sh
+sudo poweroff
+
+
+```
+
+### Verify if everything works
+```bash
+hdfs fsck
+```
+### Notebook
+
+Nohup permet de lancer un processus 
+```bash
+nohup jupyter notebook &
+```
+
+```bash
+htop
+```
+
+Let's do some python
+
+```python
+# coding : utf-8
+
+from pyspark import SparkContext, HiveContext, SparkConf
+import matplotlib.pyplot as plt
+
+conf = SparkConf().setMaster('local[*]')
+conf = conf.setAppName('APPTEST')
+#conf = conf.set('spark.ui.port','4042')
+#This line let define a new port for viewing the UI display of Spark
+
+sc = SparkContext(conf=conf)
+
+hctx = HiveContext(sc)
+
+hctx.sql("SHOW DATABASES").show()
+hctx.sql("USE DATASOURCE").show()
+hctx.sql("SHOW TABLES").show()
+
+sdata = hctx.sql("SELECT * FROM datasource.svi_data")
+sdata.show()
+
+sdata = sdata.repartition(4).persist()
+#persist() let store data in RAM
+
+hdata = sdata.rdd.map(lambda x : (x.calltime[:13],1)).groupByKey().mapValues(lambda x : len(list(x))).sortByKey()
+hdata.take(5)
+
+%matplotlib inline
+plt.ylabel("calls per halfhour");
+plt.title("Total Calls");
+plt.plot(hdata.values().collect());
+
+udata =sdata.rdd.map(lambda x : (x.calltime[:13],x.phonenumber)).distinct().groupByKey().mapValues(lambda x : len(list(x))).sortByKey()
+
+
+plt.ylabel("Customers per halfhour");
+plt.title("Unique customers");
+plt.plot(udata.values().collect());
+
+rdata = hdata.join(udata).mapValues(lambda x : x[0]*1.00/x[1])
+
+
+plt.ylabel("Customers per halfhour");
+plt.title("Call Rate");
+plt.plot(rdata.values().collect(), color='r');
+
+plt.hist(rdata.values().collect(), color='r', bins=20);
+
+hdata.keys().take(5)
+
+hdata.join(udata).map(lambda x : (x[0],x[1][0],x[1][1])).take(5)
+
+hdata.values().stats()
+
+udata.values().stats()
+
+
+
+
+sc.stop()
+
+```
+
+Arrêter la machine correctement
+---
+
+Pour arrêter tout et stopper correctement les différents services
+``stop-all.sh``
+
+Demander au processus nohup
+``kill -9 <numero du processus de nohup>``
+
+Arrêter la machine
+``sudo poweroff``
 
 # Chat
 **anon1** : Hello world !
@@ -184,3 +281,5 @@ GROUP BY ROUND(location.lat,0), ROUND(location.lng,0);
 **noname**: je vote `mini hackathon, challenge kaggle`
 **PetitPanda**: je vote atelier stage !
 *Belette anonyme a ragequit la discussion*
+**Patrick**: À que coucou Bob !
+**Bob**: À que coucou Patrick ! Quoi de neuf ?
